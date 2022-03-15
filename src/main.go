@@ -190,7 +190,7 @@ func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/topsecret", topsecret).Methods("POST")
-	r.HandleFunc("/topsecret_split/{satellite_name}", topsecretSplit).Methods("POST")
+	r.HandleFunc("/topsecret_split/{satellite_name}", topsecretSplit).Methods("POST", "GET")
 
 	log.Printf("Listening...")
 	if err := http.ListenAndServe(":3000", r); err != nil {
