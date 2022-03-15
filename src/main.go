@@ -21,20 +21,19 @@ type Satellites struct {
 	Satellites []Satelite `json:"Satellites"`
 }
 
+var varSatellites Satellites
+
 func topsecret(w http.ResponseWriter, r *http.Request) {
 
 	reqBody, _ := ioutil.ReadAll(r.Body)
 
 	var post Satellites
 
-	json.Unmarshal(reqBody, &post)
-
-	//json.NewEncoder(w).Encode(&post)
-
-	//data, err := json.Marshal(post)
-
-	//fmt.Println(string(data))
-	//respondWithJSON(w, http.StatusOK, post)
+	error2 := json.Unmarshal(reqBody, &post)
+	if error2 != nil {
+		respondWithError(w, http.StatusBadRequest, "No se puede establecer la ubicacion")
+		return
+	}
 
 	mx, my := GetLocation(post.Satellites[0].Distance, post.Satellites[1].Distance, post.Satellites[2].Distance)
 	resp := make(map[string]interface{})
@@ -42,48 +41,38 @@ func topsecret(w http.ResponseWriter, r *http.Request) {
 	p := make(map[string]float32)
 	p["x"] = mx
 	p["y"] = my
-
+	if mx == 0.0 || my == 0.0 {
+		respondWithError(w, http.StatusBadRequest, "No se puede establecer la ubicacion")
+		return
+	}
 	resp["position"] = p
-	resp["message"] = "Status Created"
 
-	//jsonResp, _ := json.Marshal(resp)
+	resp["message"] = GetMessage(post.Satellites[0].Message, post.Satellites[1].Message, post.Satellites[2].Message)
 
-	//w.Header().Set("Content-Type", "application/json")
-	//w.WriteHeader(http.StatusOK)
-	//w.Write(jsonResp)
-
-	//fmt.Println(mx)
-	///fmt.Println(my)
-
-	//data, _ := json.Marshal(res)
-
-	//if err != nil {
-	//	respondWithError(w, http.StatusBadRequest, err.Error())
-	//	return
-	//}
 	respondWithJSON(w, http.StatusOK, resp)
 
 }
 
-func GetMessage(messages ...[5]string) (msg string) {
+func GetMessage(messages ...[]string) (msg string) {
 
-	var mess [5]string
-
+	var mess = make([]string, len(messages[0]))
 	for _, mensaje := range messages {
-
 		for x, dato := range mensaje {
-			fmt.Println(dato)
 			if mess[x] == "" {
 				mess[x] = dato
 			}
 		}
 	}
-	fmt.Println(mess)
-	return "-------------"
+
+	for _, x := range mess {
+		msg += x + " "
+	}
+
+	return msg
 }
 
 func GetLocation(distances ...float32) (rx, ry float32) {
-	fmt.Println(xySatelites)
+	//fmt.Println(xySatelites)
 	var dist [3]float32
 
 	for i, param := range distances {
@@ -120,6 +109,63 @@ func GetLocation(distances ...float32) (rx, ry float32) {
 
 }
 
+func topsecretSplit(w http.ResponseWriter, r *http.Request) {
+
+	reqBody, _ := ioutil.ReadAll(r.Body)
+	satellite_name := mux.Vars(r)["satellite_name"]
+
+	var post Satelite
+
+	error2 := json.Unmarshal(reqBody, &post)
+	if error2 != nil {
+		respondWithError(w, http.StatusBadRequest, "No se puede establecer la ubicacion")
+		return
+	}
+
+	fmt.Println("xxxxxxxxxxxxxxxx")
+
+	post.Name = satellite_name
+
+	var tempVarSatellites []Satelite
+
+	for _, sal := range varSatellites.Satellites {
+		fmt.Println("yyyyyyy")
+		fmt.Println(sal.Name)
+		fmt.Println(sal.Name == satellite_name)
+		fmt.Println("yyyyyyyy")
+
+		if sal.Name != satellite_name {
+			tempVarSatellites = append(tempVarSatellites, sal)
+		}
+	}
+	varSatellites.Satellites = tempVarSatellites
+	varSatellites.Satellites = append(varSatellites.Satellites, post)
+
+	fmt.Println(varSatellites)
+	fmt.Println("xxxxxxxxxxxxxxxx")
+
+	if len(varSatellites.Satellites) == 3 {
+		mx, my := GetLocation(varSatellites.Satellites[0].Distance, varSatellites.Satellites[1].Distance, varSatellites.Satellites[2].Distance)
+		resp := make(map[string]interface{})
+
+		p := make(map[string]float32)
+		p["x"] = mx
+		p["y"] = my
+		if mx == 0.0 || my == 0.0 {
+			respondWithError(w, http.StatusBadRequest, "No se puede establecer la ubicacion")
+			return
+		}
+		resp["position"] = p
+
+		resp["message"] = GetMessage(varSatellites.Satellites[0].Message, varSatellites.Satellites[1].Message, varSatellites.Satellites[2].Message)
+		respondWithJSON(w, http.StatusOK, resp)
+	} else {
+		respondWithError(w, http.StatusBadRequest, "No se puede establecer la ubicacion. No hay suficiente información")
+		return
+	}
+
+}
+
 func respondWithError(w http.ResponseWriter, code int, message string) {
 	respondWithJSON(w, code, map[string]string{"error": message})
 }
@@ -136,12 +182,6 @@ var xySatelites = make(map[string][2]float32)
 
 func main() {
 
-	myarray := [5]string{"", "este", "es", "un", "mensaje"}
-	myarray2 := [5]string{"", "este", "", "un", "mensaje"}
-
-	rx := GetMessage(myarray, myarray2)
-	fmt.Println(rx)
-
 	//UBICACIONES DE LOS SATELITES Kenobi: [-500, -200] Skywalker: [100, -100] Sato: [500, 100]
 	xySatelites["Kenobi"] = [2]float32{-500, -200}
 	xySatelites["Skywalker"] = [2]float32{100, -100}
@@ -150,7 +190,7 @@ func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/topsecret", topsecret).Methods("POST")
-	r.HandleFunc("/", topsecret)
+	r.HandleFunc("/topsecret_split/{satellite_name}", topsecretSplit).Methods("POST")
 
 	log.Printf("Listening...")
 	if err := http.ListenAndServe(":3000", r); err != nil {
