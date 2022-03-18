@@ -199,7 +199,7 @@ func main() {
 	r.HandleFunc("/topsecret", topsecret).Methods("POST")
 	r.HandleFunc("/topsecret_split/{satellite_name}", topsecretSplit).Methods("POST", "GET")
 
-	log.Printf("Listening...")
+	log.Printf("Listening v1...")
 	if err := http.ListenAndServe(":3000", r); err != nil {
 		log.Fatal(err)
 	}
